@@ -47,10 +47,3 @@ for i in URL:#This cycles through the URL's if you have more than one
                         noti.notify(
                         title = itemname.text,
                         message = (linker['href'] +'\n' + price.text))
-                       
-
-                    
-       
-
-
-   
