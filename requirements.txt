@@ -2,5 +2,4 @@ requests
 beautifulsoup4
 lxml
 openpyxl
-plyr
-cython
+notify-py

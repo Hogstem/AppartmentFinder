@@ -4,9 +4,9 @@ from datetime import date
 
 # ! python3
 import requests as r
-from bs4 import BeautifulSoup as bs
+from bs4 import BeautifulSoup
+from notifypy import Notify
 from openpyxl import Workbook as book
-from plyer import notification as noti
 
 filename = "Apartment.xlsx"  # This creates the excel spreadsheet each time
 workbook = book()
@@ -21,15 +21,15 @@ for i in URL:  # This cycles through the URL's if you have more than one
     page = r.get(URL[c])
     c += 1
     # print("\n" + '>' + (URL[c])) #Because adding it to the print above would not work
-    soup = bs(page.content, "html.parser")  # parses the html
-    searc = soup.find(id="searchform")  # This selects all info on the page
-    rent = searc.find_all("li", class_="result-row")  # this defines the information for each item on the page
+    soup = BeautifulSoup(page.content, 'lxml')  # parses the html
+    searc = soup.find(id='searchform')  # This selects all info on the page
+    rent = searc.find_all('li', class_='result-row')  # this defines the information for each item on the page
     for x in rent:
-        itemname = x.find("a", class_="result-title hdrlnk")
-        price = x.find("span", class_="result-price")
-        location = x.find("span", class_="result-hood")
-        linker = x.find("a", class_="result-title hdrlnk")
-        posted = x.find("time", class_="result-date")
+        itemname = x.find('a', class_='result-title hdrlnk')
+        price = x.find('span', class_='result-price')
+        location = x.find('span', class_='result-hood')
+        linker = x.find('a', class_='result-title hdrlnk')
+        posted = x.find('time', class_='result-date')
         if itemname not in li:
             if location is not None:
                 # Keeps the apartments pulled in a range
@@ -53,7 +53,8 @@ for i in URL:  # This cycles through the URL's if you have more than one
                     workbook.save(filename=filename)
                     if str(posted.text) == today.strftime('%b ' + '%d'):
                         # if the date of the posting is todays date it will notify your desktop
-                        noti.notify(
-                            title=itemname.text,
-                            message=(linker['href'] + '\n' + price.text)
-                        )
+                        # https://github.com/ms7m/notify-py#usage
+                        notification = Notify()
+                        notification.title = itemname.text
+                        notification.message = f"{linker['href']}\n{price.text}"
+                        notification.send()
