@@ -1,7 +1,7 @@
 # ! python3
 import urllib.parse
 from pathlib import Path
-from typing import List, Dict, Iterable
+from typing import Dict, Iterable, Union
 
 import requests
 from bs4 import BeautifulSoup
@@ -52,7 +52,7 @@ def result_gen(url: str, max: int) -> Iterable[Dict[str, str]]:
             break
 
 
-def save_results(path: Path, results: List[Dict]):
+def save_results(path: Union[str, Path], results: Iterable[Dict]):
     path = Path(path) if not isinstance(path, Path) else path
 
     if path.exists():
@@ -106,12 +106,28 @@ if __name__ == '__main__':
     # needs to have a urls.txt file in the same folder. The file should have 1 URL per line
     URL_LIST = Path('urls.txt').open('r').readlines()
 
-    results = [
-        result
-        for url in URL_LIST
-        for result in result_gen(url, max=4000)
-    ]
+    RESULTS = Path('Apartments.xlsx')
 
-    print(f'Found {len(results)} listings')
+    if RESULTS.exists():
+        prev_results = load_workbook(
+            filename=str(RESULTS),
+            read_only=True,
+            data_only=True
+        ).worksheets[0]
 
-    save_results('Apartments.xlsx', results)
+        prev_results = set(
+            prev_results.cell(row=r + 1, column=3).value
+            for r in range(prev_results.max_row)
+        )
+    else:
+        prev_results = set()
+
+    save_results(
+        path=RESULTS,
+        results=(
+            result
+            for url in URL_LIST
+            for result in result_gen(url, max=100)
+            if result['link'] not in prev_results
+        )
+    )
