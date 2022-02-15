@@ -3,7 +3,7 @@ import re
 import urllib.parse
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, Iterable, Union, Set
+from typing import Dict, Iterable, Union, Set, Tuple
 
 import requests
 from bs4 import BeautifulSoup
@@ -50,7 +50,10 @@ def process_result(result_element: Tag):
     }
 
 
-def result_gen(url: str, max_results: int = 500, min_beds: int = None) -> Iterable[Dict[str, str]]:
+def result_gen(url: str,
+               max_results: int = 500,
+               min_beds: int = None,
+               price_range: Tuple[int, int] = None) -> Iterable[Dict[str, str]]:
     # https://realpython.com/introduction-to-python-generators/
     soup = BeautifulSoup(requests.get(url).content, 'lxml')
 
@@ -64,9 +67,14 @@ def result_gen(url: str, max_results: int = 500, min_beds: int = None) -> Iterab
                 break  # break the for loop if more than the max number of results have been returned
             else:
                 result = process_result(result_element=res)
+
                 if min_beds is not None:
                     if result['beds'] < min_beds:
-                        continue
+                        continue  # skip to next result if the minimum number of beds is specified, but not met
+
+                if price_range is not None:
+                    if not (min(price_range) <= result['price'] <= max(price_range)):
+                        continue  # skip to the next result if the price range is specified, but not met
 
                 i += 1
                 yield result
@@ -180,7 +188,10 @@ if __name__ == '__main__':
     results = (
         result
         for url in URL_LIST
-        for result in result_gen(url, max_results=500, min_beds=3)
+        for result in result_gen(url,
+                                 max_results=50,
+                                 min_beds=1,
+                                 price_range=(10, 1000))
         if result['link'] not in prev_results
     )
 
