@@ -1,7 +1,7 @@
 # ! python3
 import urllib.parse
 from pathlib import Path
-from typing import Dict, Iterable, Union
+from typing import Dict, Iterable, Union, Set
 
 import requests
 from bs4 import BeautifulSoup
@@ -88,6 +88,27 @@ def save_results(path: Union[str, Path], results: Iterable[Dict]):
     book.save(filename=str(path))
 
 
+def load_previous_results(path: Union[str, Path]) -> Set:
+    if path.exists():
+        prev_results = load_workbook(
+            filename=str(path),
+            read_only=True,
+            data_only=True
+        ).worksheets[0]
+
+        return set(
+            val
+            # https://openpyxl.readthedocs.io/en/stable/api/openpyxl.worksheet.worksheet.html#openpyxl.worksheet.worksheet.Worksheet.iter_rows
+            for val in prev_results.iter_rows(
+                min_row=2, max_row=prev_results.max_row,
+                min_col=3, max_col=3,
+                values_only=True
+            )
+        )
+    else:
+        return set()
+
+
 # if the date of the posting is todays date it will notify your desktop
 # if str(res['date']) == today.strftime('%b %d'):
 #     # https://github.com/ms7m/notify-py#usage
@@ -104,23 +125,7 @@ if __name__ == '__main__':
 
     RESULTS = Path('Apartments.xlsx')
 
-    if RESULTS.exists():
-        prev_results = load_workbook(
-            filename=str(RESULTS),
-            read_only=True,
-            data_only=True
-        ).worksheets[0]
-
-        prev_results = set(
-            val
-            for val in prev_results.iter_rows(
-                min_row=2, max_row=prev_results.max_row,
-                min_col=3, max_col=3,
-                values_only=True
-            )
-        )
-    else:
-        prev_results = set()
+    prev_results = load_previous_results(RESULTS)
 
     save_results(
         path=RESULTS,
