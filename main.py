@@ -11,6 +11,7 @@ from bs4.element import Tag
 from openpyxl import Workbook, load_workbook
 
 LOCATION_REGEX = re.compile('\((?P<inner>.*?)\)')
+BED_REGEX = re.compile('(?P<br>\d+)br', re.IGNORECASE)
 
 
 def process_result(result_element: Tag):
@@ -18,6 +19,12 @@ def process_result(result_element: Tag):
         result_element.select_one('time.result-date')['datetime'],
         '%Y-%m-%d %H:%M'
     )
+    details = result_element.select_one('span.housing')
+    if details is not None and (match := BED_REGEX.search(details.text)):
+        beds = int(match.group('br'))
+    else:
+        beds = 0
+
     link = result_element.select_one('h3 a')
     price = result_element.select_one('span.result-price')
     location = LOCATION_REGEX.search(
@@ -26,6 +33,7 @@ def process_result(result_element: Tag):
 
     return {
         'name': link.text,
+        'beds': beds,
         'date': posted.date(),
         'link': link['href'],
         'price': int(price.text.replace('$', '').replace(',', '')),
@@ -33,7 +41,7 @@ def process_result(result_element: Tag):
     }
 
 
-def result_gen(url: str, max: int) -> Iterable[Dict[str, str]]:
+def result_gen(url: str, max: int = 500, min_beds: int = None) -> Iterable[Dict[str, str]]:
     # https://realpython.com/introduction-to-python-generators/
     soup = BeautifulSoup(requests.get(url).content, 'lxml')
 
@@ -47,7 +55,11 @@ def result_gen(url: str, max: int) -> Iterable[Dict[str, str]]:
             if i > max:
                 break  # break the for loop if more than the max number of results have been returned
             else:
-                yield process_result(result_element=res)
+                result = process_result(result_element=res)
+                if min_beds is None:
+                    yield result
+                elif min_beds <= result['beds']:
+                    yield result
 
         if i > max:
             break  # might also need to break the while loop
@@ -76,13 +88,15 @@ def save_results(path: Union[str, Path], results: Iterable[Dict]):
     if sheet.max_row <= 1:
         sheet = book.worksheets[0]
 
-        sheet.column_dimensions['A'].width = 63
-        sheet.column_dimensions['C'].width = 89
-        sheet.column_dimensions['D'].width = 29
-        sheet.column_dimensions['E'].width = 12
+        sheet.column_dimensions['A'].width = 65
+        sheet.column_dimensions['B'].width = 8
+        sheet.column_dimensions['C'].width = 8
+        sheet.column_dimensions['D'].width = 15
+        sheet.column_dimensions['E'].width = 10
 
         headers = [
             'Item Name',
+            'Beds',
             'Price',
             'Link',
             'Location',
@@ -96,13 +110,19 @@ def save_results(path: Union[str, Path], results: Iterable[Dict]):
         print(f'Saving ${res["price"]:,} - {res["name"]}')
         first_free_row = sheet.max_row + 1
         sheet.cell(row=first_free_row, column=1).value = res['name']
-        sheet.cell(row=first_free_row, column=2).value = res['price']
-        sheet.cell(row=first_free_row, column=2).number_format = '$#,##0'
-        sheet.cell(row=first_free_row, column=3).value = f"=HYPERLINK(\"{res['link']}\")"
-        sheet.cell(row=first_free_row, column=3).style = 'Hyperlink'
-        sheet.cell(row=first_free_row, column=4).value = res['location']
-        sheet.cell(row=first_free_row, column=5).value = res['date']
-        sheet.cell(row=first_free_row, column=5).number_format = 'd-mmm;@'
+
+        sheet.cell(row=first_free_row, column=2).value = res['beds']
+
+        sheet.cell(row=first_free_row, column=3).value = res['price']
+        sheet.cell(row=first_free_row, column=3).number_format = '$#,##0'
+
+        sheet.cell(row=first_free_row, column=4).value = f"=HYPERLINK(\"{res['link']}\")"
+        sheet.cell(row=first_free_row, column=4).style = 'Hyperlink'
+
+        sheet.cell(row=first_free_row, column=5).value = res['location']
+
+        sheet.cell(row=first_free_row, column=6).value = res['date']
+        sheet.cell(row=first_free_row, column=6).number_format = 'd-mmm;@'
 
     book.save(filename=str(path))
 
@@ -145,13 +165,11 @@ if __name__ == '__main__':
     RESULTS = Path('Apartments.xlsx')
 
     prev_results = load_previous_results(RESULTS)
-
-    save_results(
-        path=RESULTS,
-        results=(
-            result
-            for url in URL_LIST
-            for result in result_gen(url, max=500)
-            if result['link'] not in prev_results
-        )
+    results = (
+        result
+        for url in URL_LIST
+        for result in result_gen(url, max=500, min_beds=2)
+        if result['link'] not in prev_results
     )
+
+    save_results(path=RESULTS, results=results)
