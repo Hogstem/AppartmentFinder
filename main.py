@@ -51,15 +51,16 @@ def result_gen(url: str, max: int = 500, min_beds: int = None) -> Iterable[Dict[
         # https://www.w3schools.com/csSref/sel_id.asp
         # https://www.w3schools.com/cssref/sel_class.asp
         for res in soup.select('#search-results li.result-row div.result-info'):
-            i += 1
             if i > max:
                 break  # break the for loop if more than the max number of results have been returned
             else:
                 result = process_result(result_element=res)
-                if min_beds is None:
-                    yield result
-                elif min_beds <= result['beds']:
-                    yield result
+                if min_beds is not None:
+                    if result['beds'] < min_beds:
+                        continue
+
+                i += 1
+                yield result
 
         if i > max:
             break  # might also need to break the while loop
