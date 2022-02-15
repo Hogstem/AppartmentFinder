@@ -10,31 +10,39 @@ from bs4 import BeautifulSoup
 from bs4.element import Tag
 from openpyxl import Workbook, load_workbook
 
+# general information about regex and the specific features used below
+# https://docs.python.org/3/howto/regex.html#non-capturing-and-named-groups
+# https://docs.python.org/3/howto/regex.html#greedy-versus-non-greedy
+
+# use link below to see how this regex works:
+# https://pythex.org/?regex=%5C((%3FP%3Cinner%3E.*%3F)%5C)&test_string=%20%20%20asdf%20%20%20(%20%20location%20)%20asdf&ignorecase=1&multiline=0&dotall=0&verbose=0
 LOCATION_REGEX = re.compile('\((?P<inner>.*?)\)')
-BED_REGEX = re.compile('(?P<br>\d+)br', re.IGNORECASE)
+
+# use link below to see how this regex works:
+# https://pythex.org/?regex=(%3FP%3Cbr%3E%5Cd%2B)br&test_string=%242%2C064%2F%203br%20-%201362ft2%20-%20&ignorecase=1&multiline=0&dotall=0&verbose=0
+BED_REGEX = re.compile('(?P<beds>\d+)br', re.IGNORECASE)
 
 
 def process_result(result_element: Tag):
-    posted = datetime.strptime(
-        result_element.select_one('time.result-date')['datetime'],
-        '%Y-%m-%d %H:%M'
-    )
-    details = result_element.select_one('span.housing')
-    if details is not None and (match := BED_REGEX.search(details.text)):
-        beds = int(match.group('br'))
+    date_element: Tag = result_element.select_one('time.result-date')
+    posted_datetime: datetime = datetime.strptime(date_element['datetime'], '%Y-%m-%d %H:%M')
+
+    detail_element: Tag = result_element.select_one('span.housing')
+    # https://realpython.com/python-walrus-operator/
+    if detail_element is not None and (match := BED_REGEX.search(detail_element.text)):
+        beds = int(match.group('beds'))
     else:
         beds = 0
 
-    link = result_element.select_one('h3 a')
-    price = result_element.select_one('span.result-price')
-    location = LOCATION_REGEX.search(
-        str(result_element.select_one('span.result-hood'))
-    ).group('inner').strip()
+    link: Tag = result_element.select_one('h3 a')
+    price: Tag = result_element.select_one('span.result-price')
+
+    location = LOCATION_REGEX.search(str(result_element.select_one('span.result-hood'))).group('inner').strip()
 
     return {
         'name': link.text,
         'beds': beds,
-        'date': posted.date(),
+        'date': posted_datetime.date(),
         'link': link['href'],
         'price': int(price.text.replace('$', '').replace(',', '')),
         'location': location
