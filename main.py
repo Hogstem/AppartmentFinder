@@ -3,7 +3,7 @@
 from datetime import date
 
 # ! python3
-import requests as r
+import requests
 from bs4 import BeautifulSoup
 from notifypy import Notify
 from openpyxl import Workbook as book
@@ -17,43 +17,58 @@ URL = ['Enter the craigslist URL for the area you are in, make sure the max apar
 Lis = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U']
 today = date.today()
 o = 1
-for i in URL:  # This cycles through the URL's if you have more than one
-    page = r.get(URL[c])
-    c += 1
 
-    soup = BeautifulSoup(page.content, 'lxml')  # parses the html
 
+def result_gen(url: str):
+    soup = BeautifulSoup(
+        requests.get(url).content,
+        'lxml'
+    )
     for res in soup.select('#search-results li.result-row div.result-info'):
         posted = res.select_one('time.result-date')
         link = res.select_one('h3 a')
         price = res.select_one('span.result-price')
         location = res.select_one('span.result-hood')
 
-        if link['href'] not in li:
-            if location is not None:
-                price_val = int(price.text.replace('$', '').replace(',', ''))
-                if 10 <= price_val <= 1500:  # Keeps the apartments pulled in a range
-                    li.append(link['href'])
-                    o += 1  # This helps to move to the next line on the sheet with each new entry
+        yield {
+            'name': link.text,
+            'date': posted.text,
+            'link': link['href'],
+            'price': int(price.text.replace('$', '').replace(',', '')),
+            'location': location.text
+        }
+
+
+for url in URL_LIST:  # This cycles through the URL's if you have more than one
+    for i, res in enumerate(result_gen(url)):
+        if res['link'] not in li:
+            if res['location'] is not None:
+                if 10 <= res['price'] <= 1500:
+
+                    li.append(res['link'])
+
                     sheet['A1'] = 'Item Name'
-                    sheet['E1'] = 'Posted'
                     sheet['B1'] = 'Price'
                     sheet['C1'] = 'Link'
                     sheet['D1'] = 'Location'
+                    sheet['E1'] = 'Posted Date'
+
                     sheet.column_dimensions['A'].width = 63
                     sheet.column_dimensions['C'].width = 89
                     sheet.column_dimensions['D'].width = 29
-                    sheet['A' + str(o)] = str(link.text)
-                    sheet['B' + str(o)] = str(price.text)
-                    sheet['C' + str(o)] = str(link['href'])
-                    sheet['D' + str(o)] = str(location.text)
-                    sheet['E' + str(o)] = str(posted.text)
+
+                    sheet[f'A{i}'] = res['name']
+                    sheet[f'B{i}'] = res['price']
+                    sheet[f'C{i}'] = res['link']
+                    sheet[f'D{i}'] = res['location']
+                    sheet[f'E{i}'] = res['date']
+
                     workbook.save(filename=filename)
                     # if the date of the posting is todays date it will notify your desktop
 
-                    if str(posted.text) == today.strftime('%b %d'):
+                    if str(res['date']) == today.strftime('%b %d'):
                         # https://github.com/ms7m/notify-py#usage
                         notification = Notify()
-                        notification.title = link.text
-                        notification.message = f"{link['href']}\n{price.text}"
+                        notification.title = res['name']
+                        notification.message = f"{res['link']}\n{res['price']}"
                         notification.send()
