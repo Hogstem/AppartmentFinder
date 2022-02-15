@@ -55,14 +55,11 @@ def result_gen(url: str, max: int) -> Iterable[Dict[str, str]]:
 def save_results(path: Union[str, Path], results: Iterable[Dict]):
     path = Path(path) if not isinstance(path, Path) else path
 
-    if path.exists():
-        book = load_workbook(filename=str(path))
+    book = load_workbook(filename=str(path)) if path.exists() else Workbook()
+    sheet = book.worksheets[0]
+
+    if sheet.max_row <= 1:
         sheet = book.worksheets[0]
-        pre_existing_results = set(row[2] for row in sheet.values)
-    else:
-        book = Workbook()
-        sheet = book.worksheets[0]
-        pre_existing_results = set()
 
         sheet.column_dimensions['A'].width = 63
         sheet.column_dimensions['C'].width = 89
@@ -79,8 +76,7 @@ def save_results(path: Union[str, Path], results: Iterable[Dict]):
         for i, h in enumerate(headers):
             sheet.cell(row=1, column=i + 1).value = h
 
-    filtered_results = (res for res in results if res['link'] not in pre_existing_results)
-    for i, res in enumerate(filtered_results):
+    for i, res in enumerate(results):
         print(f'Saving ${res["price"]:,} - {res["name"]}')
         first_free_row = sheet.max_row + 1
         sheet.cell(row=first_free_row, column=1).value = res['name']
