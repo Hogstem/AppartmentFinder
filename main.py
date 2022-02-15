@@ -20,22 +20,20 @@ o = 1
 for i in URL:  # This cycles through the URL's if you have more than one
     page = r.get(URL[c])
     c += 1
-    # print("\n" + '>' + (URL[c])) #Because adding it to the print above would not work
+
     soup = BeautifulSoup(page.content, 'lxml')  # parses the html
-    searc = soup.find(id='searchform')  # This selects all info on the page
-    rent = searc.find_all('li', class_='result-row')  # this defines the information for each item on the page
-    for x in rent:
-        itemname = x.find('a', class_='result-title hdrlnk')
-        price = x.find('span', class_='result-price')
-        location = x.find('span', class_='result-hood')
-        linker = x.find('a', class_='result-title hdrlnk')
-        posted = x.find('time', class_='result-date')
-        if itemname not in li:
+
+    for res in soup.select('#search-results li.result-row div.result-info'):
+        posted = res.select_one('time.result-date')
+        link = res.select_one('h3 a')
+        price = res.select_one('span.result-price')
+        location = res.select_one('span.result-hood')
+
+        if link['href'] not in li:
             if location is not None:
-                # Keeps the apartments pulled in a range
-                if (int(price.text.replace('$', '').replace(',', '')) <= 800) and \
-                        (int(price.text.replace('$', '').replace(',', '')) >= 10):
-                    li.append(linker["href"])
+                price_val = int(price.text.replace('$', '').replace(',', ''))
+                if 10 <= price_val <= 1500:  # Keeps the apartments pulled in a range
+                    li.append(link['href'])
                     o += 1  # This helps to move to the next line on the sheet with each new entry
                     sheet['A1'] = 'Item Name'
                     sheet['E1'] = 'Posted'
@@ -45,16 +43,17 @@ for i in URL:  # This cycles through the URL's if you have more than one
                     sheet.column_dimensions['A'].width = 63
                     sheet.column_dimensions['C'].width = 89
                     sheet.column_dimensions['D'].width = 29
-                    sheet['A' + str(o)] = str(itemname.text)
+                    sheet['A' + str(o)] = str(link.text)
                     sheet['B' + str(o)] = str(price.text)
-                    sheet['C' + str(o)] = str(linker["href"])
+                    sheet['C' + str(o)] = str(link['href'])
                     sheet['D' + str(o)] = str(location.text)
                     sheet['E' + str(o)] = str(posted.text)
                     workbook.save(filename=filename)
-                    if str(posted.text) == today.strftime('%b ' + '%d'):
-                        # if the date of the posting is todays date it will notify your desktop
+                    # if the date of the posting is todays date it will notify your desktop
+
+                    if str(posted.text) == today.strftime('%b %d'):
                         # https://github.com/ms7m/notify-py#usage
                         notification = Notify()
-                        notification.title = itemname.text
-                        notification.message = f"{linker['href']}\n{price.text}"
+                        notification.title = link.text
+                        notification.message = f"{link['href']}\n{price.text}"
                         notification.send()
