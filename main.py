@@ -37,7 +37,8 @@ def process_result(result_element: Tag):
     link: Tag = result_element.select_one('h3 a')
     price: Tag = result_element.select_one('span.result-price')
 
-    location = LOCATION_REGEX.search(str(result_element.select_one('span.result-hood'))).group('inner').strip()
+    location_element: Tag = result_element.select_one('span.result-hood')
+    location = LOCATION_REGEX.search(str(location_element)).group('inner').strip()
 
     return {
         'name': link.text,
@@ -49,7 +50,7 @@ def process_result(result_element: Tag):
     }
 
 
-def result_gen(url: str, max: int = 500, min_beds: int = None) -> Iterable[Dict[str, str]]:
+def result_gen(url: str, max_results: int = 500, min_beds: int = None) -> Iterable[Dict[str, str]]:
     # https://realpython.com/introduction-to-python-generators/
     soup = BeautifulSoup(requests.get(url).content, 'lxml')
 
@@ -59,7 +60,7 @@ def result_gen(url: str, max: int = 500, min_beds: int = None) -> Iterable[Dict[
         # https://www.w3schools.com/csSref/sel_id.asp
         # https://www.w3schools.com/cssref/sel_class.asp
         for res in soup.select('#search-results li.result-row div.result-info'):
-            if i > max:
+            if i > max_results:
                 break  # break the for loop if more than the max number of results have been returned
             else:
                 result = process_result(result_element=res)
@@ -70,13 +71,14 @@ def result_gen(url: str, max: int = 500, min_beds: int = None) -> Iterable[Dict[
                 i += 1
                 yield result
 
-        if i > max:
+        if i > max_results:
             break  # might also need to break the while loop
 
         try:  # try to keep getting the next page, and break the while loop if any errors happen
             # https://www.w3schools.com/cssref/sel_attr_begin.asp
             next_page_link = soup.select_one('a[title^=next]')
 
+            # generate the URL for the next page by replacing the path portion with that from the href attribute
             next_url = urllib.parse.urlunsplit(
                 # https://docs.python.org/3/library/urllib.parse.html#urllib.parse.urlsplit
                 urllib.parse.urlsplit(url)._replace(path=next_page_link['href'])
@@ -89,14 +91,15 @@ def result_gen(url: str, max: int = 500, min_beds: int = None) -> Iterable[Dict[
 
 
 def save_results(path: Union[str, Path], results: Iterable[Dict]):
+    # make sure that the path variable is a Path object, which is a good practice and makes lots of operations easier
     path = Path(path) if not isinstance(path, Path) else path
 
+    # load the workbook if the designated file already exists, otherwise generate a blank Workbook in memory
     book = load_workbook(filename=str(path)) if path.exists() else Workbook()
     sheet = book.worksheets[0]
 
+    # set up the header row and resize the columns if there's no data present
     if sheet.max_row <= 1:
-        sheet = book.worksheets[0]
-
         sheet.column_dimensions['A'].width = 65
         sheet.column_dimensions['B'].width = 8
         sheet.column_dimensions['C'].width = 8
@@ -177,7 +180,7 @@ if __name__ == '__main__':
     results = (
         result
         for url in URL_LIST
-        for result in result_gen(url, max=500, min_beds=3)
+        for result in result_gen(url, max_results=500, min_beds=3)
         if result['link'] not in prev_results
     )
 
