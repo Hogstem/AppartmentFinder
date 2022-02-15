@@ -1,5 +1,6 @@
 # ! python3
 import urllib.parse
+from datetime import datetime
 from pathlib import Path
 from typing import Dict, Iterable, Union, Set
 
@@ -17,7 +18,10 @@ def result_gen(url: str, max: int) -> Iterable[Dict[str, str]]:
         # https://www.w3schools.com/csSref/sel_id.asp
         # https://www.w3schools.com/cssref/sel_class.asp
         for res in soup.select('#search-results li.result-row div.result-info'):
-            posted = res.select_one('time.result-date')
+            posted = datetime.strptime(
+                res.select_one('time.result-date')['datetime'],
+                '%Y-%m-%d %H:%M'
+            )
             link = res.select_one('h3 a')
             price = res.select_one('span.result-price')
             location = res.select_one('span.result-hood')
@@ -28,7 +32,7 @@ def result_gen(url: str, max: int) -> Iterable[Dict[str, str]]:
 
             yield {
                 'name': link.text,
-                'date': posted.text,
+                'date': posted.date(),
                 'link': link['href'],
                 'price': int(price.text.replace('$', '').replace(',', '')),
                 'location': location.text
@@ -64,6 +68,7 @@ def save_results(path: Union[str, Path], results: Iterable[Dict]):
         sheet.column_dimensions['A'].width = 63
         sheet.column_dimensions['C'].width = 89
         sheet.column_dimensions['D'].width = 29
+        sheet.column_dimensions['E'].width = 12
 
         headers = [
             'Item Name',
@@ -81,9 +86,11 @@ def save_results(path: Union[str, Path], results: Iterable[Dict]):
         first_free_row = sheet.max_row + 1
         sheet.cell(row=first_free_row, column=1).value = res['name']
         sheet.cell(row=first_free_row, column=2).value = res['price']
+        sheet.cell(row=first_free_row, column=2).number_format = '$#,##0'
         sheet.cell(row=first_free_row, column=3).value = res['link']
         sheet.cell(row=first_free_row, column=4).value = res['location']
         sheet.cell(row=first_free_row, column=5).value = res['date']
+        sheet.cell(row=first_free_row, column=5).number_format = 'd-mmm;@'
 
     book.save(filename=str(path))
 
@@ -97,7 +104,7 @@ def load_previous_results(path: Union[str, Path]) -> Set:
         ).worksheets[0]
 
         return set(
-            val[0] # iter_rows returns a tuple with a single value
+            val[0]  # iter_rows returns a tuple with a single value
             # https://openpyxl.readthedocs.io/en/stable/api/openpyxl.worksheet.worksheet.html#openpyxl.worksheet.worksheet.Worksheet.iter_rows
             for val in prev_results.iter_rows(
                 min_row=2, max_row=prev_results.max_row,
