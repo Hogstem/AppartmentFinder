@@ -1,4 +1,5 @@
 # ! python3
+import re
 import urllib.parse
 from datetime import datetime
 from pathlib import Path
@@ -7,6 +8,8 @@ from typing import Dict, Iterable, Union, Set
 import requests
 from bs4 import BeautifulSoup
 from openpyxl import Workbook, load_workbook
+
+LOCATION_REGEX = re.compile('\((?P<inner>.*?)\)')
 
 
 def result_gen(url: str, max: int) -> Iterable[Dict[str, str]]:
@@ -24,7 +27,9 @@ def result_gen(url: str, max: int) -> Iterable[Dict[str, str]]:
             )
             link = res.select_one('h3 a')
             price = res.select_one('span.result-price')
-            location = res.select_one('span.result-hood')
+            location = LOCATION_REGEX.search(
+                str(res.select_one('span.result-hood'))
+            ).group('inner').strip()
 
             i += 1
             if i > max:
@@ -35,7 +40,7 @@ def result_gen(url: str, max: int) -> Iterable[Dict[str, str]]:
                 'date': posted.date(),
                 'link': link['href'],
                 'price': int(price.text.replace('$', '').replace(',', '')),
-                'location': location.text
+                'location': location
             }
 
         if i > max:
@@ -87,7 +92,8 @@ def save_results(path: Union[str, Path], results: Iterable[Dict]):
         sheet.cell(row=first_free_row, column=1).value = res['name']
         sheet.cell(row=first_free_row, column=2).value = res['price']
         sheet.cell(row=first_free_row, column=2).number_format = '$#,##0'
-        sheet.cell(row=first_free_row, column=3).value = res['link']
+        sheet.cell(row=first_free_row, column=3).value = f"=HYPERLINK(\"{res['link']}\")"
+        sheet.cell(row=first_free_row, column=3).style = 'Hyperlink'
         sheet.cell(row=first_free_row, column=4).value = res['location']
         sheet.cell(row=first_free_row, column=5).value = res['date']
         sheet.cell(row=first_free_row, column=5).number_format = 'd-mmm;@'
