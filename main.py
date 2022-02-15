@@ -1,5 +1,5 @@
 # ! python3
-
+import urllib.parse
 from pathlib import Path
 from typing import List, Dict, Iterable
 
@@ -8,22 +8,48 @@ from bs4 import BeautifulSoup
 from openpyxl import Workbook, load_workbook
 
 
-def result_gen(url: str = 'Apartment.xlsx') -> Iterable[Dict[str, str]]:
+def result_gen(url: str, max: int) -> Iterable[Dict[str, str]]:
     soup = BeautifulSoup(requests.get(url).content, 'lxml')
 
-    for res in soup.select('#search-results li.result-row div.result-info'):
-        posted = res.select_one('time.result-date')
-        link = res.select_one('h3 a')
-        price = res.select_one('span.result-price')
-        location = res.select_one('span.result-hood')
+    i = 0  # used to keep track of how many results have been returned
+    while True:
+        # see the below links for information about the CSS selectors used in soup.select(...)
+        # https://www.w3schools.com/csSref/sel_id.asp
+        # https://www.w3schools.com/cssref/sel_class.asp
+        for res in soup.select('#search-results li.result-row div.result-info'):
+            posted = res.select_one('time.result-date')
+            link = res.select_one('h3 a')
+            price = res.select_one('span.result-price')
+            location = res.select_one('span.result-hood')
 
-        yield {
-            'name': link.text,
-            'date': posted.text,
-            'link': link['href'],
-            'price': int(price.text.replace('$', '').replace(',', '')),
-            'location': location.text
-        }
+            i += 1
+            if i > max:
+                break  # break the for loop if more than the max number of results have been returned
+
+            yield {
+                'name': link.text,
+                'date': posted.text,
+                'link': link['href'],
+                'price': int(price.text.replace('$', '').replace(',', '')),
+                'location': location.text
+            }
+
+        if i > max:
+            break  # might also need to break the while loop
+
+        try:  # try to keep getting the next page, and break the while loop if any errors happen
+            # https://www.w3schools.com/cssref/sel_attr_begin.asp
+            next_page_link = soup.select_one('a[title^=next]')
+
+            next_url = urllib.parse.urlunsplit(
+                # https://docs.python.org/3/library/urllib.parse.html#urllib.parse.urlsplit
+                urllib.parse.urlsplit(url)._replace(path=next_page_link['href'])
+            )
+
+            print(f'Getting next page: {next_url}, {i} results so far')
+            soup = BeautifulSoup(requests.get(next_url).content, 'lxml')
+        except Exception as e:
+            break
 
 
 def save_results(path: Path, results: List[Dict]):
@@ -74,15 +100,18 @@ def save_results(path: Path, results: List[Dict]):
 #     notification.message = f"{res['link']}\n{res['price']}"
 #     notification.send()
 
+# https://docs.python.org/3/library/__main__.html#idiomatic-usage
+# https://stackoverflow.com/questions/419163/what-does-if-name-main-do
 if __name__ == '__main__':
-    URL_LIST = ['Enter the craigslist URL for the area you are in, make sure the max apartment price is at at least 700$']
+    # needs to have a urls.txt file in the same folder. The file should have 1 URL per line
+    URL_LIST = Path('urls.txt').open('r').readlines()
 
     results = [
         result
         for url in URL_LIST
-        for result in result_gen(url)
+        for result in result_gen(url, max=4000)
     ]
 
     print(f'Found {len(results)} listings')
 
-    save_results('Apartment.xlsx', results)
+    save_results('Apartments.xlsx', results)
