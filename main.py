@@ -1,7 +1,5 @@
 # ! python3
 
-# This program can be turned into a .bat file and run once or multiple times a day with task scheduler to send you a desktop notification when a new apartment is available
-
 from pathlib import Path
 from typing import List, Dict, Iterable
 
@@ -33,9 +31,12 @@ def save_results(path: Path, results: List[Dict]):
 
     if path.exists():
         book = load_workbook(filename=str(path))
+        sheet = book.worksheets[0]
+        pre_existing_results = set(row[2] for row in sheet.values)
     else:
         book = Workbook()
         sheet = book.worksheets[0]
+        pre_existing_results = set()
 
         sheet.column_dimensions['A'].width = 63
         sheet.column_dimensions['C'].width = 89
@@ -52,8 +53,9 @@ def save_results(path: Path, results: List[Dict]):
         for i, h in enumerate(headers):
             sheet.cell(row=1, column=i + 1).value = h
 
-    sheet = book.worksheets[0]
-    for i, res in enumerate(results):
+    filtered_results = (res for res in results if res['link'] not in pre_existing_results)
+    for i, res in enumerate(filtered_results):
+        print(f'Saving ${res["price"]:,} - {res["name"]}')
         first_free_row = sheet.max_row + 1
         sheet.cell(row=first_free_row, column=1).value = res['name']
         sheet.cell(row=first_free_row, column=2).value = res['price']
@@ -62,6 +64,7 @@ def save_results(path: Path, results: List[Dict]):
         sheet.cell(row=first_free_row, column=5).value = res['date']
 
     book.save(filename=str(path))
+
 
 # if the date of the posting is todays date it will notify your desktop
 # if str(res['date']) == today.strftime('%b %d'):
