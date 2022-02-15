@@ -116,8 +116,12 @@ if __name__ == '__main__':
         ).worksheets[0]
 
         prev_results = set(
-            prev_results.cell(row=r + 1, column=3).value
-            for r in range(prev_results.max_row)
+            val
+            for val in prev_results.iter_rows(
+                min_row=2, max_row=prev_results.max_row,
+                min_col=3, max_col=3,
+                values_only=True
+            )
         )
     else:
         prev_results = set()
