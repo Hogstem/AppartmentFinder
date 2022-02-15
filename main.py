@@ -97,7 +97,7 @@ def load_previous_results(path: Union[str, Path]) -> Set:
         ).worksheets[0]
 
         return set(
-            val
+            val[0] # iter_rows returns a tuple with a single value
             # https://openpyxl.readthedocs.io/en/stable/api/openpyxl.worksheet.worksheet.html#openpyxl.worksheet.worksheet.Worksheet.iter_rows
             for val in prev_results.iter_rows(
                 min_row=2, max_row=prev_results.max_row,
