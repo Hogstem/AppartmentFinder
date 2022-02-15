@@ -7,12 +7,34 @@ from typing import Dict, Iterable, Union, Set
 
 import requests
 from bs4 import BeautifulSoup
+from bs4.element import Tag
 from openpyxl import Workbook, load_workbook
 
 LOCATION_REGEX = re.compile('\((?P<inner>.*?)\)')
 
 
+def process_result(result_element: Tag):
+    posted = datetime.strptime(
+        result_element.select_one('time.result-date')['datetime'],
+        '%Y-%m-%d %H:%M'
+    )
+    link = result_element.select_one('h3 a')
+    price = result_element.select_one('span.result-price')
+    location = LOCATION_REGEX.search(
+        str(result_element.select_one('span.result-hood'))
+    ).group('inner').strip()
+
+    return {
+        'name': link.text,
+        'date': posted.date(),
+        'link': link['href'],
+        'price': int(price.text.replace('$', '').replace(',', '')),
+        'location': location
+    }
+
+
 def result_gen(url: str, max: int) -> Iterable[Dict[str, str]]:
+    # https://realpython.com/introduction-to-python-generators/
     soup = BeautifulSoup(requests.get(url).content, 'lxml')
 
     i = 0  # used to keep track of how many results have been returned
@@ -21,27 +43,11 @@ def result_gen(url: str, max: int) -> Iterable[Dict[str, str]]:
         # https://www.w3schools.com/csSref/sel_id.asp
         # https://www.w3schools.com/cssref/sel_class.asp
         for res in soup.select('#search-results li.result-row div.result-info'):
-            posted = datetime.strptime(
-                res.select_one('time.result-date')['datetime'],
-                '%Y-%m-%d %H:%M'
-            )
-            link = res.select_one('h3 a')
-            price = res.select_one('span.result-price')
-            location = LOCATION_REGEX.search(
-                str(res.select_one('span.result-hood'))
-            ).group('inner').strip()
-
             i += 1
             if i > max:
                 break  # break the for loop if more than the max number of results have been returned
-
-            yield {
-                'name': link.text,
-                'date': posted.date(),
-                'link': link['href'],
-                'price': int(price.text.replace('$', '').replace(',', '')),
-                'location': location
-            }
+            else:
+                yield process_result(result_element=res)
 
         if i > max:
             break  # might also need to break the while loop
@@ -145,7 +151,7 @@ if __name__ == '__main__':
         results=(
             result
             for url in URL_LIST
-            for result in result_gen(url, max=100)
+            for result in result_gen(url, max=500)
             if result['link'] not in prev_results
         )
     )
