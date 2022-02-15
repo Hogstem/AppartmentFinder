@@ -163,14 +163,14 @@ if __name__ == '__main__':
     # needs to have a urls.txt file in the same folder. The file should have 1 URL per line
     URL_LIST = Path('urls.txt').open('r').readlines()
 
-    RESULTS = Path('Apartments.xlsx')
+    RESULT_PATH = Path('Apartments.xlsx')
 
-    prev_results = load_previous_results(RESULTS)
+    prev_results = load_previous_results(RESULT_PATH)
     results = (
         result
         for url in URL_LIST
-        for result in result_gen(url, max=500, min_beds=2)
+        for result in result_gen(url, max=500, min_beds=3)
         if result['link'] not in prev_results
     )
 
-    save_results(path=RESULTS, results=results)
+    save_results(path=RESULT_PATH, results=results)
